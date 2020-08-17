@@ -62,6 +62,7 @@
         This does not apply to local discovery connections.
     </string>
     <string name="dialog_file_save_as">Save as</string>
+    <string name="dialog_file_delete">Delete</string>
     <string name="pending_index_updates">%d index updates pending</string>
     <string name="device_status_connecting">Connecting to %s</string>
     <string name="device_status_connected">Connected to %s</string>

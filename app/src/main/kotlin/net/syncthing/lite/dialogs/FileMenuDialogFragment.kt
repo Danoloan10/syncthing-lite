@@ -19,6 +19,7 @@ class FileMenuDialogFragment: BottomSheetDialogFragment() {
         private const val ARG_FILE_SPEC = "file spec"
         private const val TAG = "DownloadFileDialog"
         private const val REQ_SAVE_AS = 1
+        private const val REQ_DELETE  = 2
 
         fun newInstance(fileInfo: FileInfo) = newInstance(DownloadFileSpec(
                 folder = fileInfo.folder,
@@ -55,12 +56,27 @@ class FileMenuDialogFragment: BottomSheetDialogFragment() {
             )
         }
 
+        binding.deleteButton.setOnClickListener {
+            startActivityForResult(
+                    Intent(Intent.ACTION_DELETE).apply {
+                        putExtra(Intent.EXTRA_TITLE, fileSpec.fileName)
+                    },
+                    REQ_DELETE
+            )
+        }
+
         return binding.root
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         when (requestCode) {
             REQ_SAVE_AS -> {
+                if (resultCode == Activity.RESULT_OK) {
+                    DownloadFileDialogFragment.newInstance(fileSpec, data!!.data!!).show(fragmentManager)
+                    dismiss()
+                }
+            }
+            REQ_DELETE -> {
                 if (resultCode == Activity.RESULT_OK) {
                     DownloadFileDialogFragment.newInstance(fileSpec, data!!.data!!).show(fragmentManager)
                     dismiss()

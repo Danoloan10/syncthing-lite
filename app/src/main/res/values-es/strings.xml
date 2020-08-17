@@ -64,6 +64,7 @@ Debido al comportamiento de esta aplicación y al comportamiento del servidor de
         Esto no aplica a las conexiones de descubrimiento local.
 </string>
     <string name="dialog_file_save_as">Guardar como</string>
+    <string name="dialog_file_delete">Eliminar</string>
     <string name="pending_index_updates">%d actualizaciones de índice pendientes</string>
     <string name="device_status_connecting">Conectando a %s</string>
     <string name="device_status_connected">Conectado a %s</string>
