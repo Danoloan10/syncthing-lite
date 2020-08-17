@@ -1,6 +1,7 @@
 package net.syncthing.lite.dialogs
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.support.design.widget.BottomSheetDialogFragment
@@ -8,18 +9,21 @@ import android.support.v4.app.FragmentManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import net.syncthing.java.core.beans.FileInfo
 import net.syncthing.lite.databinding.DialogFileBinding
 import net.syncthing.lite.dialogs.downloadfile.DownloadFileDialogFragment
 import net.syncthing.lite.dialogs.downloadfile.DownloadFileSpec
+import net.syncthing.lite.library.LibraryHandler
 import net.syncthing.lite.utils.MimeType
 
-class FileMenuDialogFragment: BottomSheetDialogFragment() {
+class FileMenuDialogFragment : BottomSheetDialogFragment() {
     companion object {
         private const val ARG_FILE_SPEC = "file spec"
         private const val TAG = "DownloadFileDialog"
         private const val REQ_SAVE_AS = 1
-        private const val REQ_DELETE  = 2
 
         fun newInstance(fileInfo: FileInfo) = newInstance(DownloadFileSpec(
                 folder = fileInfo.folder,
@@ -57,12 +61,17 @@ class FileMenuDialogFragment: BottomSheetDialogFragment() {
         }
 
         binding.deleteButton.setOnClickListener {
-            startActivityForResult(
-                    Intent(Intent.ACTION_DELETE).apply {
-                        putExtra(Intent.EXTRA_TITLE, fileSpec.fileName)
-                    },
-                    REQ_DELETE
-            )
+            LibraryHandler(context!!).syncthingClient { syncthingClient ->
+                GlobalScope.launch (Dispatchers.Main) {
+                    // FIXME: it would be better if the dialog would use the library handler
+                    DeleteFileDialog(
+                            context!!,
+                            syncthingClient,
+                            fileSpec.folder,
+                            fileSpec.path
+                    ) { dismiss() }.show()
+                }
+            }
         }
 
         return binding.root
@@ -71,12 +80,6 @@ class FileMenuDialogFragment: BottomSheetDialogFragment() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         when (requestCode) {
             REQ_SAVE_AS -> {
-                if (resultCode == Activity.RESULT_OK) {
-                    DownloadFileDialogFragment.newInstance(fileSpec, data!!.data!!).show(fragmentManager)
-                    dismiss()
-                }
-            }
-            REQ_DELETE -> {
                 if (resultCode == Activity.RESULT_OK) {
                     DownloadFileDialogFragment.newInstance(fileSpec, data!!.data!!).show(fragmentManager)
                     dismiss()
