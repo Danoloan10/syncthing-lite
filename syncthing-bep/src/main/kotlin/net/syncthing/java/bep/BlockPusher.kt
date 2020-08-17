@@ -32,9 +32,7 @@ import net.syncthing.java.core.utils.NetworkUtils
 import org.apache.commons.io.IOUtils
 import org.bouncycastle.util.encoders.Hex
 import org.slf4j.LoggerFactory
-import java.io.Closeable
-import java.io.IOException
-import java.io.InputStream
+import java.io.*
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.*
@@ -60,7 +58,7 @@ class BlockPusher(private val localDeviceId: DeviceId,
                 .setDeleted(true), fileInfo.versionList)
     }
 
-    suspend fun pushDir(folder: String, path: String): BlockExchangeProtos.IndexUpdate {
+    fun pushDir(folder: String, path: String): BlockExchangeProtos.IndexUpdate {
         NetworkUtils.assertProtocol(connectionHandler.hasFolder(folder), {"supplied connection handler $connectionHandler will not share folder $folder"})
         return sendIndexUpdate(folder, BlockExchangeProtos.FileInfo.newBuilder()
                 .setName(path)
@@ -130,6 +128,7 @@ class BlockPusher(private val localDeviceId: DeviceId,
                 .setSize(fileSize)
                 .setType(BlockExchangeProtos.FileInfoType.FILE)
                 .addAllBlocks(dataSource.blocks), fileInfo?.versionList)
+
         return object : FileUploadObserver() {
 
             override fun progressPercentage() = if (isCompleted.get()) 100 else (sentBlocks.size.toFloat() / dataSource.getHashes().size).toInt()
@@ -178,7 +177,7 @@ class BlockPusher(private val localDeviceId: DeviceId,
         }
     }
 
-    private suspend fun sendIndexUpdate(folderId: String, fileInfoBuilder: BlockExchangeProtos.FileInfo.Builder,
+    private /*suspend*/ fun sendIndexUpdate(folderId: String, fileInfoBuilder: BlockExchangeProtos.FileInfo.Builder,
                                         oldVersions: Iterable<Version>?): BlockExchangeProtos.IndexUpdate {
         run {
             val nextSequence = indexHandler.getNextSequenceNumber()
@@ -209,7 +208,9 @@ class BlockPusher(private val localDeviceId: DeviceId,
                 .build()
         logger.debug("index update = {}", fileInfo)
 
-        connectionHandler.sendIndexUpdate(indexUpdate)
+        GlobalScope.launch {
+            connectionHandler.sendIndexUpdate(indexUpdate)
+        }
 
         return indexUpdate
     }
@@ -243,30 +244,32 @@ class BlockPusher(private val localDeviceId: DeviceId,
         private var hash: String? = null
 
         init {
-            inputStream.use { it ->
-                val list = mutableListOf<BlockExchangeProtos.BlockInfo>()
-                var offset: Long = 0
-                while (true) {
-                    var block = ByteArray(BLOCK_SIZE)
-                    val blockSize = it.read(block)
-                    if (blockSize <= 0) {
-                        break
-                    }
-                    if (blockSize < block.size) {
-                        block = Arrays.copyOf(block, blockSize)
-                    }
+            if (inputStream is FileInputStream) {
+                FileInputStream(inputStream.fd).use { it ->
+                    val list = mutableListOf<BlockExchangeProtos.BlockInfo>()
+                    var offset: Long = 0
+                    while (true) {
+                        var block = ByteArray(BLOCK_SIZE)
+                        val blockSize = it.read(block)
+                        if (blockSize <= 0) {
+                            break
+                        }
+                        if (blockSize < block.size) {
+                            block = Arrays.copyOf(block, blockSize)
+                        }
 
-                    val hash = MessageDigest.getInstance("SHA-256").digest(block)
-                    list.add(BlockExchangeProtos.BlockInfo.newBuilder()
-                            .setHash(ByteString.copyFrom(hash))
-                            .setOffset(offset)
-                            .setSize(blockSize)
-                            .build())
-                    offset += blockSize.toLong()
+                        val hash = MessageDigest.getInstance("SHA-256").digest(block)
+                        list.add(BlockExchangeProtos.BlockInfo.newBuilder()
+                                .setHash(ByteString.copyFrom(hash))
+                                .setOffset(offset)
+                                .setSize(blockSize)
+                                .build())
+                        offset += blockSize.toLong()
+                    }
+                    size = offset
+                    blocks = list
                 }
-                size = offset
-                blocks = list
-            }
+            } else throw NotImplementedError()
         }
 
         @Throws(IOException::class)

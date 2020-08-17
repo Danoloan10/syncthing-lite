@@ -14,8 +14,10 @@ import net.syncthing.lite.utils.Util
 import org.apache.commons.io.IOUtils
 
 // TODO: this should be an IntentService with notification
-class UploadFileTask(context: Context, syncthingClient: SyncthingClient,
-                     localFile: Uri, private val syncthingFolder: String,
+class UploadFileTask(context: Context,
+                     syncthingClient: SyncthingClient,
+                     localFile: Uri,
+                     private val syncthingFolder: String,
                      syncthingSubFolder: String,
                      private val onProgress: (BlockPusher.FileUploadObserver) -> Unit,
                      private val onComplete: () -> Unit,
@@ -26,7 +28,11 @@ class UploadFileTask(context: Context, syncthingClient: SyncthingClient,
         private val handler = Handler(Looper.getMainLooper())
     }
 
-    private val syncthingPath = PathUtils.buildPath(syncthingSubFolder, Util.getContentFileName(context, localFile))
+    private val syncthingPath = if ("" == syncthingSubFolder)
+        Util.getContentFileName(context, localFile)
+    else
+        PathUtils.buildPath(syncthingSubFolder, Util.getContentFileName(context, localFile))
+    // FIXME esta línea de debajo da error (no abre el socket)
     private val uploadStream = context.contentResolver.openInputStream(localFile)
 
     private var isCancelled = false
@@ -49,6 +55,8 @@ class UploadFileTask(context: Context, syncthingClient: SyncthingClient,
                     Log.i(TAG, "upload progress = ${observer.progressPercentage()}%")
                     handler.post { onProgress(observer) }
                 }
+
+                observer.close()
                 IOUtils.closeQuietly(uploadStream)
                 handler.post { onComplete() }
             } catch (ex: Exception) {
